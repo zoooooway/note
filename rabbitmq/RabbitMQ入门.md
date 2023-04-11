@@ -1,7 +1,7 @@
 # RabbitMQ入门
 
-> 参考：[RabbitMQ官网](https://www.rabbitmq.com/getstarted.html)
->
+> 参考：
+> [RabbitMQ官网](https://www.rabbitmq.com/getstarted.html)
 > <https://javaguide.cn/high-performance/message-queue/rabbitmq-intro.html#%E4%B8%80-rabbitmq-%E4%BB%8B%E7%BB%8D>
 
 ## 安装

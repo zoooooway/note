@@ -36,14 +36,20 @@ Raft要求系统在任意时刻最多只有一个`Leader`，正常工作期间�
 * 在选举过程中收到了`Leader`的信息，这表示已经有`Candidate`成为`Leader`了，那么本次选举失败，节点变回`Follower`。
 * 同意投票的节点没有超过半数，本次选举失败，等待选举超时后发起下一次选举。
 
+![](https://raw.githubusercontent.com/zoooooway/picgo/master/202304112141935.png)
+
 `Raft`算法将时间分为一个个的任期（`term`），每一个`term`的开始都是`Leader`选举。在成功选举`Leader`之后，`Leader`会在整个`term`内管理整个集群。如果`Leader`选举失败，该`term`就会因为没有`Leader`而结束。
 
 ### Log replication
 假设现在有三个节点A,B,C。A是`Leader`，客户端的写入请求都需要先经过A。`Leader`把客户端的请求写入首先加入到它自己的日志中，然后通过下一次`heartbeat`并行的向`Follower`发起`AppendEntries RPC`请求，将该请求复制到`Follower`的日志上。当日志成功复制到`Follower`上时，`Follower`会成功返回，当超过半数的`Follower`返回成功后，`Leader`会将此条日志置为已提交状态，并且向客户端发送响应。随后，在下一次`heartbeat`，该日志的已提交状态又会被发送给各个`Follower`。
 假如某个`Follower`异常，那么`Leader`会通过`heartbeat`不断的重试`AppendEntries RPC`，直到所有`Follower`成功的复制日志。
 
-日志由有序编号（log index）的日志条目组成。每个日志条目包含它被创建时的任期号（term），和用于状态机执行的命令。如果一个日志条目被复制到大多数服务器上，就被认为可以提交（commit）了。
+日志由有序编号（`log index`）的日志条目组成。每个日志条目包含它被创建时的任期号（`term`），和用于状态机执行的命令。
+![](https://raw.githubusercontent.com/zoooooway/picgo/master/202304110944485.png)
 
 Raft日志同步保证如下两点：
 * 如果不同日志中的两个条目有着相同的索引和任期号，则它们所存储的命令是相同的。
+  因为`Leader`在一个`term`内在给定的一个`log index`最多创建一条日志条目，同时该条目在日志中的位置也从来不会改变。
 * 如果不同日志中的两个条目有着相同的索引和任期号，则它们之前的所有条目都是完全一样的。
+  这个特性来源于：当发送一个 AppendEntries RPC 时，Leader会把新日志条目紧接着之前的条目的log index和term都包含在里面。如果Follower没有在它的日志中找到log index和term都相同的日志，它就会拒绝新的日志条目。
+
