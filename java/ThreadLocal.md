@@ -55,16 +55,23 @@ static class ThreadLocalMap {
 `ThreadLocal` 被人所熟知的一个使用问题就是内存泄露. 
 
 首先, 先要理解为什么 `Entry` 会是弱引用类型的?
-先假设 `Entry` 并不是弱引用类型. 如果我们不需要使用 `ThreadLocal` 变量, 会通过语句 `ThreadLocal tl = null` 来将 `ThreadLocal` 变量变为可回收对象, 通过 `GC` 来将这个变量的内存回收掉. 但 `Entry` 中是引用了 `ThreadLocal` 这一变量的, 因此 `GC` 并不会回收它. 那么需要 `Entry` 也变成可回收对象, 但 `Entry` 是存在 `ThreadLocalMap` 中的 , `ThreadLocalMap` 是被 `Thread` 实例所引用的. 
+先假设 `Entry` 并不是弱引用类型. 如果我们不需要使用 `ThreadLocal` 变量, 会通过语句 `ThreadLocal tl = null` 来将 `ThreadLocal` 变量变为可回收对象, 通过 `GC` 来将这个变量的内存回收掉. 但 `Entry` 中是引用了 `ThreadLocal` 这一变量的, 因此 `GC` 并不会回收它. 那么需要 `Entry` 也变成可回收对象, 但 `Entry` 是存在 `ThreadLocalMap` 中的 , `ThreadLocalMap` 是被 `Thread` 实例所引用的.
+
+![](https://raw.githubusercontent.com/zoooooway/picgo/nom/202304272123530.png)
+
 因此, 只要 `Thread` 还存活, 那么 `ThreadLocalMap` 就不会被回收. 这意味着单单通过将 `ThreadLocal` 的值置为 `null` 是没办法回收 `ThreadLocal` 对象的, 因为在 `ThreadLocalMap` 中仍然存在 `ThreadLocal` 的引用. 由于大多数情况下, 我们都会使用线程池, 池中线程往往不会被销毁, 那么除非手动将 `ThreadLocalMap` 中的 `Entry` 清除, 否则 `ThreadLocal` 一直不会被回收.
 
-在前面提到了, `ThreadLocalMap` 中的值是 `Entry` 类型, `Entry` 的实例是弱引用. 创建一个 `Entry` 实例时, 构造函数需要两个值: `ThreadLocal`类型的 k 和要存储的实际值 v, 这表示如果 k 的实例只有 `Entry` 引用它, 没有任何强引用了的时候, 那么 `JVM` 会将其回收. 
+在前面提到了, `ThreadLocalMap` 中的值是 `Entry` 类型, `Entry` 的实例是弱引用. 创建一个 `Entry` 实例时, 构造函数需要两个值: `ThreadLocal`类型的 k 和要存储的实际值 v, 这表示如果 k 的实例只有 `Entry` 引用它, 没有任何强引用了的时候, 那么 `JVM` 会将 K 回收. 
 现在同样的, 通过语句 `ThreadLocal tl = null` 来将 `ThreadLocal` 变量变为可回收对象. 同样的, `Entry` 中引用了 `ThreadLocal` 这一变量, 但由于 `Entry` 是弱引用, 如果 k 只有在 `Entry` 中被引用, 那么 `JVM` 仍然会回收它. 这样就避免了 `ThreadLocal` 是强引用而去阻止 `GC`.
+
+![](https://raw.githubusercontent.com/zoooooway/picgo/nom/202304272125055.png)
 
 上述可以总结为一点: `Entry` 使用弱引用来使得 `JVM` 在 `ThreadLocal` 不使用时(不可达)回收 `ThreadLocal` 对象. 
 这句话的重点是回收 `ThreadLocal` 对象. 在 `ThreadLocalMap` 中, `ThreadLocal` 对象是键, `Entry` 是值, `Entry` 中包含了真正存储的变量 `value`. 注意上述 `Entry` 构造函数中的这个语句: `value = v;`, 这表明 `value` 强引用了传入的参数 `v`, 这意味着只要 `Entry` 不被回收, 对应的对象 `v` 也不会被回收. 
 `JDK` 考虑到这一点, 因此在 `ThreadLocal` 的实现里, 调用 `set`, `remove`, `rehash` 这些方法时, 会去清除过期的 `Entry`, 也就是 key 为 `null` 的 `Entry`.
 但很可惜, 假如 `ThreadLocal` 不再使用了, 就像上面提到的, 已经置为 `null` 了. 那么也不会再调用这些方法了, 过期的 `Entry` 也不会被清除, 对象 `v` 也不会被回收了, 而这时就发生了内存泄露.
+
+![](https://raw.githubusercontent.com/zoooooway/picgo/nom/202304272130966.png)
 
 原理有些复杂, 但正确的做法很简单, 在需要清除 `ThreadLocal` 中包含的 `value` 时调用 `ThreadLocal` 的 `remove` 方法. 调用这个方法就可以删除对应的 `value` 对象, 这样就可以避免内存泄漏。
 
