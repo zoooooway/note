@@ -1,6 +1,6 @@
 # 常用linux命令合集
 ## 查看服务器信息
-### 行版名称和版本号
+### 版本名称和版本号
 ```shell
 lsb_release -a
 ```
@@ -53,3 +53,19 @@ ps -ef | grep redis | grep -v grep | awk '{print $2}'
   ```shell 
   awk '{ print $2,$3 }' filename
   ```
+
+
+## 删除过期文件 
+```shell
+find 文件所在路径 -type f -name *.jpg -mtime +210  -print -delete
+```
+> 最后一次修改时间: -mtime (天)  -mmin (分钟)
+> 最近一次访问时间: -atime (天)  -amin (分钟)
+
+## 流量监控
+可以使用 **iftop**.
+
+* 安装: `yum install iftop`.
+* 执行 `ifconfig` 查看网卡信息.
+* ` iftop -i 网卡名称 -P`.
+
