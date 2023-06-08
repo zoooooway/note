@@ -61,8 +61,9 @@ static class ThreadLocalMap {
 
 因此, 只要 `Thread` 还存活, 那么 `ThreadLocalMap` 就不会被回收. 这意味着单单通过将 `ThreadLocal` 的值置为 `null` 是没办法回收 `ThreadLocal` 对象的, 因为在 `ThreadLocalMap` 中仍然存在 `ThreadLocal` 的引用. 由于大多数情况下, 我们都会使用线程池, 池中线程往往不会被销毁, 那么除非手动将 `ThreadLocalMap` 中的 `Entry` 清除, 否则 `ThreadLocal` 一直不会被回收.
 
-在前面提到了, `ThreadLocalMap` 中的值是 `Entry` 类型, `Entry` 的实例是弱引用. 创建一个 `Entry` 实例时, 构造函数需要两个值: `ThreadLocal`类型的 k 和要存储的实际值 v, 这表示如果 k 的实例只有 `Entry` 引用它, 没有任何强引用了的时候, 那么 `JVM` 会将 K 回收. 
-现在同样的, 通过语句 `ThreadLocal tl = null` 来将 `ThreadLocal` 变量变为可回收对象. 同样的, `Entry` 中引用了 `ThreadLocal` 这一变量, 但由于 `Entry` 是弱引用, 如果 k 只有在 `Entry` 中被引用, 那么 `JVM` 仍然会回收它. 这样就避免了 `ThreadLocal` 是强引用而去阻止 `GC`.
+在前面提到了, `ThreadLocalMap` 中的值是 `Entry` 类型, `Entry` 的实例是弱引用. 弱引用意味着: 假如对象 A 只被弱引用的对象 B 所引用，那么 A 可以被回收，即弱引用的对象不会阻止 `GC`.
+在创建一个 `Entry` 实例时, 构造函数需要两个值: `ThreadLocal`类型的 k 和要存储的实际值 v, 构造函数中声明 `Entry` 弱引用 k，这表示如果 k 的实例只有 `Entry` 引用它, 没有任何强引用了的时候, 那么 `JVM` 会将 K 回收. 
+现在同样的, 通过语句 `ThreadLocal tl = null` 来将 `ThreadLocal` 变量变为可回收对象. 同样的, `Entry` 中引用了 `ThreadLocal` 这一变量, 但由于 `Entry` 是弱引用, 如果 k 只有在 `Entry` 中被引用, 那么 `JVM` 仍然会回收它. 这样就避免了 `ThreadLocal` 在 `Entry` 中被强引用而去阻止 `GC`.
 
 ![](https://raw.githubusercontent.com/zoooooway/picgo/nom/202304272125055.png)
 
