@@ -164,7 +164,7 @@ MongoDB 默认是没有开启身份验证的, 因此不少人的 MongoDB 都被�
 6. 执行 `docker restart mongodb` 启动容器. 重复步骤 2 的操作, 这时执行 `show dbs` 来查看数据库列表, MongoDB 会报错并且提示需要认证, 证明身份认证已经开启了.
 7. 退出 MongoDB 的连接, 回到容器内. 这一次执行:
    ```shell
-    mongosh --port 27017 --authenticationDatabase "admin" -u "myUserAdmin"-p
+   mongosh --port 27017 --authenticationDatabase "admin" -u "myUserAdmin" -p
    ```
    输入密码后就能连接到 MongoDB 中, 并且这一次执行 `show dbs` 就不会报错了.
 
@@ -174,7 +174,8 @@ MongoDB 默认是没有开启身份验证的, 因此不少人的 MongoDB 都被�
 创建用户可以参考官网教程: https://www.mongodb.com/docs/manual/tutorial/create-users/
 
 创建用户主要是使用 `db.createUser()` 方法, 下面是官网的一个例子:
-```
+```js
+use test
 db.createUser(
   {
     user: "myTester",
@@ -184,5 +185,28 @@ db.createUser(
   }
 )
 ```
-我们主要关注的是 `roles` 数组里面权限项, role 代表具体权限项比如: read(读), readWrite(读和写). db 代表 role 生效的数据库. 上面的例子的意思是创建一个用户, 该用户拥有在 test 数据库中读和写的权限, 以及在 reporting 数据库中读的权限.
+我们主要关注的是 `roles` 数组里面角色项, role 代表具体角色比如: `read`(拥有读权限的角色), `readWrite`(拥有读和写的角色). db 代表 role 生效的数据库. 上面的例子的意思是创建一个用户, 该用户是在 test 数据库中能够进行读和写的角色, 以及在 reporting 数据库中进行读的角色.
 
+**角色定义的是一组操作权限**, 比如 `read` 角色包含了 `find`, `listIndexes`, `listCollections` 等操作权限, 具体的角色与权限对应关系可以参阅官网: https://www.mongodb.com/docs/manual/reference/built-in-roles/ 
+
+另外, 创建的用户会添加到执行 `db.createUser()` 方法所在的数据库. 因此, 连接时选择的身份验证数据库也是它. 比如上面的例子里, 执行 `db.createUser()` 方法时所在数据库是 test, 那么连接到 MongoDB 的命令应该是这样: 
+```shell
+mongosh --port 27017 --authenticationDatabase "test" -u "myTester" -p
+```
+如果使用客户端连接, 比如 MongoDB Compass, 那么连接的 URI 应该是:
+```uri
+mongodb://myTester:password@host:port/test
+```
+
+值得注意的是: **用户的身份验证数据库不会限制用户的权限**. 比如上面我们在 test 数据库创建了一个拥有在 reporting 数据库中读权限角色的用户, 这是允许的. 
+
+所有创建的用户都会保存在 admin 数据库中. 
+
+##### 修改密码
+首先需要使用一个拥有 `changePassword` 操作权限的用户连接到 MongoDB, 我们最先创建的 myUserAdmin 用户拥有 `userAdminAnyDatabase` 这个角色, 该角色包含 `changePassword`, `createUser` 等操作权限. 
+
+
+接着执行下面的命令:
+```js
+db.changeUserPassword("username", "password")
+```
