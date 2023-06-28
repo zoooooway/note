@@ -68,7 +68,7 @@ static class ThreadLocalMap {
 ![](https://raw.githubusercontent.com/zoooooway/picgo/nom/202304272125055.png)
 
 上述可以总结为一点: `Entry` 使用弱引用来使得 `JVM` 在 `ThreadLocal` 不使用时(不可达)回收 `ThreadLocal` 对象. 
-这句话的重点是回收 `ThreadLocal` 对象. 在 `ThreadLocalMap` 中, `ThreadLocal` 对象是键, `Entry` 是值, `Entry` 中包含了真正存储的变量 `value`. 注意上述 `Entry` 构造函数中的这个语句: `value = v;`, 这表明 `value` 强引用了传入的参数 `v`, 这意味着只要 `Entry` 不被回收, 对应的对象 `v` 也不会被回收. 
+这句话的重点是回收 `ThreadLocal` 对象. 在 `ThreadLocalMap` 中, `Entry` 是散列表中存储的条目，每一个 `Entry` 包含一个 `ThreadLocal` 对象的键和真正存储的变量 `value`. 注意上述 `Entry` 构造函数中的这个语句: `value = v;`, 这表明 `value` 强引用了传入的参数 `v`, 这意味着只要 `Entry` 不被回收, 对应的对象 `v` 也不会被回收. 
 `JDK` 考虑到这一点, 因此在 `ThreadLocal` 的实现里, 调用 `set`, `remove`, `rehash` 这些方法时, 会去清除过期的 `Entry`, 也就是 key 为 `null` 的 `Entry`.
 但很可惜, 假如 `ThreadLocal` 不再使用了, 就像上面提到的, 已经置为 `null` 了. 那么也不会再调用这些方法了, 过期的 `Entry` 也不会被清除, 对象 `v` 也不会被回收了, 而这时就发生了内存泄露.
 
