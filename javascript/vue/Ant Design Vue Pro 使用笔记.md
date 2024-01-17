@@ -22,8 +22,24 @@ logo 分为网站左侧菜单栏的图标和网站页签的图标, 它们分别�
 * 网站页签图标: 图标文件是: */public/logo.png*
   如果你想更改图片文件的路径, 不使用这个路径, 那么你需要到 */public/index.html* 里去更改引用图标文件的路径.
 
+*/public/index.html* 中还定义了项目标题, 网页加载时的等待页面等内容, 这些都需要一一修改.
+
 #### 项目标题
 项目标题只需要修改 */src/config/defaultSetting.js* 里 title 的值.
+
+#### 登录标题
+如果你不需要默认的登录页, 那么可以无需忽略此项.
+
+如果你需要默认的登录页, 那你可能需要改动一下登录页的内容.
+* 在 *src\locales\lang\zh-CN.js* 中定义了登录框上方的文字提示.
+* 在 *src\layouts\UserLayout.vue* 中定义了登录框上方的项目标题.
+* 在 *src\locales\lang\zh-CN\user.js* 中定义了用户名密码输入框的 placeholder 内容.
+
+#### 页脚
+页脚需要修改两个地方
+* 登录页的并没有使用基础布局, 因此页脚是单独定义的. *src\layouts\UserLayout.vue* 定义了页脚信息, 并且包含项目名称和logo等内容.
+* 其余使用基础布局的页面, 页脚在 *src\components\GlobalFooter\index.vue* 中进行定义, 推荐将页脚信息定义为默认常量进行引用.
+
 
 ### 业务配置
 
@@ -69,7 +85,17 @@ user -> role -> permission(菜单)
 举例来说, 假如我需要新增一个表单页面, 先在 `constantRouterComponents` 中定义一个组件: `BasicForm: () => import('@/views/form/basicForm')`, 然后后端返回的路由信息中的 `component` 的值就指定为 `BasicForm`.
 你也可以选择直接在后端返回的路由信息中指定组件路径, 比如: `component` 的值就指定为 `form/basicForm`, 但不推荐这样做. 路由加载的具体逻辑在 */src/router/generator-routers.js* `generator` 函数中.
 
+#### 右上角用户名
+右上角用户名在 *src\components\GlobalHeader\AvatarDropdown.vue* 中渲染, 脚手架渲染逻辑是通过在 *src\components\GlobalHeader\RightContent.vue* 中将 `currentUser` 传入子组件 `AvatarDropdown` 中. 因此你需要修改 `currentUser` 的获取逻辑, 通常, 直接获取 `state` 中保存登录后的用户名即可, 比如:
+```js
+computed: {
+  ...mapState({
+    nickname: (state) => state.user.name
+  })
+}
+```
 
+但需要注意, 你必须确保你后端返回的用户信息有正确的保存到 `state` 中, 如果你后端的返回参数和前端登录解析时的参数格式不同, 你应该相应的在登录逻辑 *src\store\modules\user.js* 中进行调整.
 
 #### 引入组件
 有时你需要引入一些新的第三方组件, 你需要去修改相关组件加载的配置: 
