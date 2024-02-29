@@ -35,10 +35,10 @@ docker search mysql
 * 创建容器并运行
 
 ```shell
-docker run -d --name=mysqlx.x.x -p 3306:3306 -v mysqldata:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=password mysql:x.x.x
+docker run -d --name=mysql8.3.0 -p 3306:3306 -v /data/docker/mysql/data:/var/lib/mysql -v /data/docker/mysql/conf:/etc/mysql/conf.d -v /data/docker/mysql/logs:/var/log/mysql -e MYSQL_ROOT_PASSWORD=ceRS2FsVkeg9 mysql:8.3.0
 ```
 
-update user set authentication_string=PASSWORD("xxx") where User='root';
+`update user set authentication_string=PASSWORD("xxx") where User='root'`;
 
 > -p 3306:3306：将主机的3306端口映射到docker容器的3306端口。
 >
@@ -58,15 +58,34 @@ update user set authentication_string=PASSWORD("xxx") where User='root';
 >
 > --collation-server=utf8mb4_unicode_ci：设置校对集
 
-
+* 进入容器
+  ```shell
+  # 进入容器内部
+  docker exec -it mysql8.3.0 /bin/bash
+  ```
+  
+* 操作数据库
+  > 在容器内部操作
+  ```shell
+  # 连接到mysql
+  mysql -u root -p
+  # 创建数据库
+  CREATE DATABASE mydatabase CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+  # 查看数据库列表
+  show databases;
+  # 使用数据库
+  use mydatabase;
+  # 导入sql
+  source /path/something.sql;
+  
+  show tables;
+  ```
 
 ## Redis
 
  ```shell 
  docker pull redis
  ```
-
- 
 
 *  新建一个redis目录，用于存放redis.conf
 
@@ -105,6 +124,6 @@ requirepass password
 
 
 ```bash
-docker run --name myredis -p 6379:6379 -v /var/lib/docker/volumes/redis/data:/data -v /usr/local/docker/redis/conf/redis.conf:/etc/redis/redis.conf -d redis redis-server /etc/redis/redis.conf 
+docker run -d --name myredis -p 6379:6379 -v /var/lib/docker/volumes/redis/data:/data -v /usr/local/docker/redis/conf/redis.conf:/etc/redis/redis.conf redis:xxx redis-server /etc/redis/redis.conf 
 ```
 
