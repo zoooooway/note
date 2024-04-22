@@ -35,7 +35,7 @@ docker search mysql
 * 创建容器并运行
 
 ```shell
-docker run -d --name=mysql8.3.0 -p 3306:3306 -v /data/docker/mysql/data:/var/lib/mysql -v /data/docker/mysql/conf:/etc/mysql/conf.d -v /data/docker/mysql/logs:/var/log/mysql -e MYSQL_ROOT_PASSWORD=ceRS2FsVkeg9 mysql:8.3.0
+docker run -d --restart always  -p 3306:3306 -v /data/docker/mysql/data:/var/lib/mysql -v /data/docker/mysql/conf:/etc/mysql/conf.d -v /data/docker/mysql/logs:/var/log/mysql -e MYSQL_ROOT_PASSWORD=ceRS2FsVkeg9 --name=mysql8.3.0 mysql:8.3.0
 ```
 
 `update user set authentication_string=PASSWORD("xxx") where User='root'`;

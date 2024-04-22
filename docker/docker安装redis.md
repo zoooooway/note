@@ -43,6 +43,6 @@ requirepass password
 
 
 ```bash
-docker run -d --name myredis -p 6379:6379 -v /var/lib/docker/volumes/redis/data:/data -v /usr/local/docker/redis/conf/redis.conf:/etc/redis/redis.conf redis:xxx redis-server /etc/redis/redis.conf 
+docker run -d --restart always -p 6379:6379 -v /var/lib/docker/volumes/redis/data:/data -v /usr/local/docker/redis/conf/redis.conf:/etc/redis/redis.conf --name myredis redis:xxx redis-server /etc/redis/redis.conf 
 ```
 
