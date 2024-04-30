@@ -1,8 +1,8 @@
 # vscode相关使用记录
 
-## workspace
+## vue
 
-### vue, eslint, vetur
+### eslint, vetur
 ```json
 {
 	"folders": [
@@ -25,3 +25,6 @@
 	}
 }
 ```
+
+### 无法跳转到Component
+引入Component时, 不要忽略后缀名`.vue`.
