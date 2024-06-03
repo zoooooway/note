@@ -1,4 +1,5 @@
 # Kafka 概述
+> 官方文档：https://kafka.apache.org/documentation/#gettingStarted
 > 以图像的方式清晰的描述 kafka 的主要概念：https://timothystepro.medium.com/visualizing-kafka-20bc384803e7
 
 本文简单描述 Kafka 的架构，数据消费的流程。
@@ -8,9 +9,11 @@ Apache Kafka 是一种分布式数据存储，经过优化以实时提取和处�
 在日常使用中，Kafka 常被作为消息队列来使用。为了便于描述，下文将使用消息来指代 kafka 中存储的数据。
 
 ## 主要概念
+![kafka 集群示意图](image.png "kafka 集群示意图")
 
 ### Producers（生产者）和 Consumer（消费者）
 向 Kafka 发送消息的服务被称为 `producer` ，反之，消费 Kafka 中消息的服务被称为`consumer`。
+
 一个`consumer`可能也是 `producer`，一个 `producer` 可能也是 `consumer`。比如存在服务 A，B，C。服务 A 向 Kafka 发送消息，服务 B 消费服务 A 上报的数据。并且，服务 B 会向 Kafka 发送消息，服务 C 消费服务 B 上报的消息。在微服务架构下，像服务 B 这样同时是 `producer` 和 `consumer` 的情况非常常见。
 
 ### Topic（主题）
@@ -22,4 +25,21 @@ Apache Kafka 是一种分布式数据存储，经过优化以实时提取和处�
 一个 `topic` 在外界看起来像是一个队列一样，`producer` 向其中添加数据，`consumer` 从队列中拿数据。
 事实上 `topic` 并不是一个单独的类似队列的数据结构，而是由一个或多个（通常是多个）`partition` 组成的。一个 `partition` 类似一个队列，每个消息被发送到 `topic` 时会被添加到这个 `topic` 下的其中一个 `partition` 中。将 `topic` 拆分为 `partition` 使得 `topic` 具有很强的可扩展性。
 
+每当消息发送到 Kafka 中时都会被保存到 `partition` 中，一旦写入到 `partition` 中，消息便不可再更改。分区中的每一条消息都有一个的 `offset`（偏移量），`consumer` 拉取消息时通过指定 `offset` 来按顺序消费分区中的消息。
+
+`Partition` 的数量可以自由指定。如果 Kafka 以集群的方式运行，那么 `partition` 会均衡的分布在集群内部的 broker 中。
+!["分区与代理"](image-1.png "分区与代理示意图")
+
+### Broker（代理）
+运行 Kafka 的节点（服务器或容器）被称之为 `broker`。 
+
+`Broker`处理来自客户端（`producer` 或 `consumer`）的所有请求（消息上报、消费和请求元数据）并保持数据在集群内复制。
+
+### Kafka Cluster（Kafka 集群）
+多个 `broker` 一起工作的集合称为 Kafka 集群。
+
+相对于运行单个 `broker`，Kafka 集群能提供高可用的稳定性：只要集群中大多数（超过半数） `broker` 可用，Kafka 就能正常提供服务。实际上，大多数生产环境都是以集群方式运行的。
+
 ### Consumer Group（消费者组）
+
+### Zookeeper
