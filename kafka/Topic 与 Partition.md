@@ -21,7 +21,22 @@ Kafka 是一个事件流平台，消息（事件）流向 Kafka，随后通过 K
 
 每一个 `topic` 都被分为一个或多个 `partition`。每个 `partition` 都可以同时承载消息的读取和写入，这允许多个消费者并行消费单个 `topic`，使得业务能够更加简单的进行横向扩展。
 
+### Replica
+高可用是所有重要中间件的通用要求，Kafka 以集群部署的形式来实现高可用，只要超过半数节点可用，Kafka 集群便可正常提供服务。
+想象一下假设集群中某个节点故障，那么该节点下的 `topic` 该如何不受影响的正常写入和读取呢？一个很朴素但非常有用的解决方法是在其他节点上保留 `topic` 的副本，在当前节点异常时通过其他节点上的副本来恢复工作。实际上，大多数的高可用方法都是基于这一简单的想法，只是实现方式有所不同。Kafka 也不例外，在 Kafka 中通过 `replica`（副本）的设计来避免节点故障带来的数据丢失。
 
+首先，`topic` 被分为多个 `partition`，`partition` 的数量可以通过配置 `num.partitions` 指定。一旦确定好 `partition` 的数量后，Kafka 会负责将所有 `partition` 尽可能均匀的分布到集群中的各个节点下。通过这样的分布后，每个节点下的 `partition` 都能同时进行读取和写入，因此单个 `topic` 是并行处理的，大大提高了 Kafka 的吞吐能力。同时也能进行负载均衡，将 `topic` 的请求尽可能均匀的分散到所有节点上。
+上述分布在各个节点下的 `partition` 被称作 `leader`（领导者）副本，该 `partition` 的所有读取和写入请求都将会交给 `leader` 副本所在的 `broker` 负责。
+现在我们已经将单个 `topic` 的若干个分区分散到各个节点下了。但别忘记，为了在某些节点故障后仍能正常工作，我们还需要保留一些备份到其他节点上，否则一旦节点异常，节点下分布的 `partition` 就会无法写入或丢失。因此，现在需要再将分布到这些节点下的 `partition` 复制到其他节点下，这些副本被称为 `follower`（追随者） 副本。
+`Partition` 副本的数量可由配置 `replication.factor` 进行指定，注意，副本的数量包含 `leader` 副本。我们这里以 `replication.factor=1` 为例子，这表示每个 `partition` 在集群中只会存在一个 `leader` 副本，没有 `follower` 副本。如果 `replication.factor=3`，那么除了一个 `leader` 副本外，在另外两个 broker 中，还会保留该 `partition` 的 `follower` 副本。Kafka 会将副本不重复的分布在各个节点下，也就是说同一个 `partition` 在一个 `broker` 上最多只会有一个副本。
+> 注意：`replication.factor` 的值不能大于可用 `broker` 的数量。
+
+如下图所示，下图展示了集群中包含三个节点下时 `replication.factor=2` 的情况。不同颜色代表不同的 `topic`，#1，#2 代表 `topic` 被分为两个分区。
+
+![alt text](image-3.png)
+
+`Follower` 副本并不负责生产者或消费者请求的处理，它只会同步 `leader` 副本的数据。每个 `partition` 的请求都只会交由 `follower` 副本所在的 `broker` 来进行处理，一旦数据写入 `leader` 副本所在 `broker`，`broker` 会将数据同步给 `follower` 副本。
+> 在使用 Kafka 投递消息时，有一个参数 `acks` 非常重要，它指定了发送到 `partition` 中的消息被认定为成功写入的标准。有三个取值：0，1，-1/all。分别代表生产者发送后就代表成功写入；生产者发送后，写入 `leader` 副本后就算成功写入；生产者发送后，写入 `leader` 副本后，还必须同步到所有的 `follower` 副本成功后才算写入成功。
 
 
 当投递一条消息到 `broker` 时，生产者必须同时指定 `topic` 和 `partition` 来表明消息最终写入的地方，`broker` 只负责写入消息而不会帮生产者去选择合适的写入 `partition`。
@@ -36,4 +51,8 @@ Kafka 是一个事件流平台，消息（事件）流向 Kafka，随后通过 K
 > 如果 `key` 为空，会计算出一个投递的 `partition`，并且后续所有 `key` 为空的消息都会被投递至这一 `partition`。因此，正常情况下，如果没有指定 `partition`，你不应该传递空  `key`。
 > 
 > 上述默认实现也许不能满足使用，另一种常见的情况是自己自定义 `Partitioner` 来自定义不指定 `partition` 时如何计算出写入的 `partition`。
+
+
+
+
 
