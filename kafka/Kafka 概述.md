@@ -30,7 +30,7 @@ Kafka 可以支持海量的数据投递和处理，这些数据流入 Kafka 后�
 `Partition` 以日志文件的形式存储消息。每当消息发送到 Kafka 中时都会以追加的方式被保存到一个 `partition` 中，一旦写入到 `partition` 中，消息便不可再更改。
 分区中的每一条消息都有一个的 `offset`（偏移量），`consumer` 拉取消息时通过指定 `offset` 来按**顺序**消费分区中的消息。通常来说，`consumer`通过不断增加指定的 `offset` 值来顺序消费 `topic` 中的消息，但有时 `consumer` 也可以在消费时选择指定更小或更大的 `offset` 来重复消费一些消息或是跳过消费一些消息。
 
-`Partition` 的数量可以自由指定。如果 Kafka 以集群的方式运行，那么 `partition` 会均衡的分布在集群内部的 broker 中。
+`Partition` 的数量可以自由指定。如果 Kafka 以集群的方式运行，那么 `partition` 会均衡的分布在集群内部的 `broker` 中。
 !["分区与代理"](image-1.png "分区与代理示意图")
 
 ##### Segment（段）
@@ -67,7 +67,7 @@ ZooKeeper 在旧版本的 Kafka 中是核心依赖组件，ZooKeeper 负责元�
 ### Kafka Cluster（Kafka 集群）
 多个 `broker` 一起工作的集合称为 Kafka 集群。
 
-相对于运行单个 `broker`，Kafka 集群能提供高可用的稳定性：只要集群中大多数（超过半数） `broker` 可用，Kafka 就能正常提供服务。实际上，大多数生产环境都是以集群方式运行的。
+相对于运行单个 `broker`，Kafka 集群能提供高可用的稳定性：只要集群中可用 `broker` 满足指定数量，Kafka 就能正常提供服务。实际上，大多数生产环境下 Kafka 都是以集群方式运行的。
 
 ## 投递与消费
 上文提到借由消费者组可以实现多个 `consumer` 不重复的消费同一个 `topic` 中的信息。在消费时，其实是将 `topic` 下的每一个 `partition` 指定给消费者组中的其中一个 `consumer`。

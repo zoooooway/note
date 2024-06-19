@@ -1,4 +1,10 @@
 # Topic 与 Partition
+> 参考：
+> https://kafka.apache.org/documentation/#replication
+> https://timothystepro.medium.com/visualizing-kafka-20bc384803e7
+> https://www.conduktor.io/kafka/kafka-topics-internals-segments-and-indexes/
+> https://www.cloudkarafka.com/blog/apache-kafka-replication-factor-perfect-number.html
+
 > 部分内容是基于 Java 客户端代码得出的，其他语言可能不同。
 > Kafka 生产环境下绝大部分是集群部署，因此以下内容默认都是集群模式下的情况。
 
@@ -21,26 +27,25 @@ Kafka 是一个事件流平台，消息（事件）流向 Kafka，随后通过 K
 
 每一个 `topic` 都被分为一个或多个 `partition`。每个 `partition` 都可以同时承载消息的读取和写入，这允许多个消费者并行消费单个 `topic`，使得业务能够更加简单的进行横向扩展。
 
-### Replica
-高可用是所有重要中间件的通用要求，Kafka 以集群部署的形式来实现高可用，只要超过半数节点可用，Kafka 集群便可正常提供服务。
-想象一下假设集群中某个节点故障，那么该节点下的 `topic` 该如何不受影响的正常写入和读取呢？一个很朴素但非常有用的解决方法是在其他节点上保留 `topic` 的副本，在当前节点异常时通过其他节点上的副本来恢复工作。实际上，大多数的高可用方法都是基于这一简单的想法，只是实现方式有所不同。Kafka 也不例外，在 Kafka 中通过 `replica`（副本）的设计来避免节点故障带来的数据丢失。
+### Replication
+高可用是所有重要中间件的通用要求，Kafka 以集群部署的形式来实现高可用，一个集群中可以包含多个 `broker`。
+想象一下假设集群中某个节点故障，那么该节点下的 `topic` 该如何不受影响的正常写入和读取呢？一个很朴素但非常有用的解决方法是在其他节点上保留 `topic` 的副本，在当前节点异常时通过其他节点上的副本来恢复工作，这种备份的方式也被称作 *冗余复制*。实际上，大多数的高可用方法都是基于这一简单的想法，只是实现方式有所不同。Kafka 也不例外，在 Kafka 中通过 `replica`（副本）的设计来避免节点故障带来的数据丢失。
 
-首先，`topic` 被分为多个 `partition`，`partition` 的数量可以通过配置 `num.partitions` 指定。一旦确定好 `partition` 的数量后，Kafka 会负责将所有 `partition` 尽可能均匀的分布到集群中的各个节点下。通过这样的分布后，每个节点下的 `partition` 都能同时进行读取和写入，因此单个 `topic` 是并行处理的，大大提高了 Kafka 的吞吐能力。同时也能进行负载均衡，将 `topic` 的请求尽可能均匀的分散到所有节点上。
+首先，`topic` 被分为多个 `partition`，`partition` 的数量可以通过配置 `num.partitions` 指定。一旦确定好 `partition` 的数量后，Kafka 会负责将所有 `partition` 尽可能均匀的分布到集群中的各个节点下。通过这样的分布后，每个节点下的 `partition` 都能同时进行读取和写入，因此单个 `topic` 是可用并行处理的，这大大提高了 Kafka 的吞吐能力。同时也能进行负载均衡，将 `topic` 的请求尽可能均匀的分散到所有节点上。
+
 上述分布在各个节点下的 `partition` 被称作 `leader`（领导者）副本，该 `partition` 的所有读取和写入请求都将会交给 `leader` 副本所在的 `broker` 负责。
 现在我们已经将单个 `topic` 的若干个分区分散到各个节点下了。但别忘记，为了在某些节点故障后仍能正常工作，我们还需要保留一些备份到其他节点上，否则一旦节点异常，节点下分布的 `partition` 就会无法写入或丢失。因此，现在需要再将分布到这些节点下的 `partition` 复制到其他节点下，这些副本被称为 `follower`（追随者） 副本。
-`Partition` 副本的数量可由配置 `replication.factor` 进行指定，注意，副本的数量包含 `leader` 副本。我们这里以 `replication.factor=1` 为例子，这表示每个 `partition` 在集群中只会存在一个 `leader` 副本，没有 `follower` 副本。如果 `replication.factor=3`，那么除了一个 `leader` 副本外，在另外两个 broker 中，还会保留该 `partition` 的 `follower` 副本。Kafka 会将副本不重复的分布在各个节点下，也就是说同一个 `partition` 在一个 `broker` 上最多只会有一个副本。
+
+`Partition` 副本的数量可由配置 `replication.factor` 进行指定，注意，`replication.factor` 指定的数量已经包含了 `leader` 副本。我们这里以 `replication.factor=1` 为例子，这表示每个 `partition` 在集群中只会存在一个 `leader` 副本，没有 `follower` 副本。如果 `replication.factor=3`，那么除了一个 `leader` 副本外，在另外两个 broker 中，还会保留该 `partition` 的 `follower` 副本。Kafka 会将副本不重复的分布在各个节点下，也就是说同一个 `partition` 在一个 `broker` 上最多只会有一个副本。
 > 注意：`replication.factor` 的值不能大于可用 `broker` 的数量。
 
 如下图所示，下图展示了集群中包含三个节点下时 `replication.factor=2` 的情况。不同颜色代表不同的 `topic`，#1，#2 代表 `topic` 被分为两个分区。
 
 ![alt text](image-3.png)
 
-`Follower` 副本并不负责生产者或消费者请求的处理，它只会同步 `leader` 副本的数据。每个 `partition` 的请求都只会交由 `follower` 副本所在的 `broker` 来进行处理，一旦数据写入 `leader` 副本所在 `broker`，`broker` 会将数据同步给 `follower` 副本。
-> 在使用 Kafka 投递消息时，有一个参数 `acks` 非常重要，它指定了发送到 `partition` 中的消息被认定为成功写入的标准。有三个取值：0，1，-1/all。分别代表生产者发送后就代表成功写入；生产者发送后，写入 `leader` 副本后就算成功写入；生产者发送后，写入 `leader` 副本后，还必须同步到所有的 `follower` 副本成功后才算写入成功。
-
-
 当投递一条消息到 `broker` 时，生产者必须同时指定 `topic` 和 `partition` 来表明消息最终写入的地方，`broker` 只负责写入消息而不会帮生产者去选择合适的写入 `partition`。
 `Partition` 冗余分布在集群中各个 `broker` 中，生产者只会将消息发送到每个 `partition` 的 `Leader` 副本所在的 `broker` 中，写入 `Leader` 副本后由 `broker` 通过复制的方式同步给其他副本。
+`Follower` 副本并不负责生产者或消费者请求的处理，它只会同步来自 `Leader` 副本的数据。每个 `partition` 的请求都只会交由 `Leader` 副本所在的 `broker` 来进行处理，一旦数据写入 `Leader` 副本所在 `broker`，`broker` 会将数据同步给 `Follower` 副本。
 由上述操作流程可知，每个生产者在发送消息前都需要获取到集群内部 `topic`、`partition` 的相关信息。因此，发送消息前，生产者都会先向 `broker` 获取一系列元数据，这些元数据可以用于帮助生产者来确定发送到哪个 `broker`（`Leader` 副本所在的节点），以及在未指定 `partition`  时通过可用的 `partition` 列表来默认指定 `partition`。
 
 > 以下内容针对于 Java 语言的 Kafka 客户端代码。 
@@ -52,7 +57,25 @@ Kafka 是一个事件流平台，消息（事件）流向 Kafka，随后通过 K
 > 
 > 上述默认实现也许不能满足使用，另一种常见的情况是自己自定义 `Partitioner` 来自定义不指定 `partition` 时如何计算出写入的 `partition`。
 
+##### ISR
+前文提到 Kafka 支持集群模式进行部署以实现高可用，在分布式系统中，集群部署非常常见的一个确保高可用的方式是多数投票：只要超过半数节点正常，整个集群便可正常提供服务。
 
+但 Kafka 在保证可用性的设计上并不是使用多数投票来实现。在理解 Kafka 如何实现高可用之前，需要先了解一些概念。
+Kafka 在内部维护了一组同步副本（in-sync replicas），被称为 `ISR`。`ISR` 需要满足两点：
+* `broker` 必须与 `controller` 保持活动会话，以便接收定期元数据更新。
+* `follower` 副本必须复制 `leader` 副本的写入，并且不能落后 `leader` 副本太多。
+
+注意 `ISR` 中包含 `leader` 副本。
+
+Kafka 可以通过 `ISR` 来确定数据的写入是否正常。在常见的分布式集群下，成功写入的标准一般是写入集群内超过半数的节点。而在 Kafka 中，数据写入的地方是 `partition`，对于某个 `partition`，集群中某些节点上可能并不存在这个 `partition` 的副本。这就意味着对于写入数据而言，只需要关心 `partition` 副本（`leader` / `follower`）所在的 `broker` 即可。`ISR`  列表是动态变化的，一旦 `broker` 落后太多数据或是故障，就会被移出 `ISR`。在此基础上，Kafka 通过 `ISR` 确定某个 `partition` 对于的一组处于 *“同步”* 状态的节点，并以此来衡量写入是否成功。
+
+具体来说，在投递数据时，生产者有一个配置：`acks` 非常重要，它指定了发送到 `partition` 中的消息被认定为成功写入的标准。有三个取值：0，1，-1（与 all 是等价的）。分别代表生产者发送数据后就代表成功写入；生产者发送数据后，需等待写入 `leader` 副本后返回 `broker` 的确认才算成功写入。
+第三个取值单独解释，当 `acks` 设置为 all 时，生产者发送数据后，除了需要写入 `leader` 副本，还需要等待数据同步到其他 `ISR` 上。由于 `ISR` 会动态变化，假设现在集群中某个 `partition` 分布在 20 个 `broker` 上，但有 18 个 `broker` 都已经故障或是数据落后 `leader` 过多，此时 `ISR` 的数量为 2，这时集群明显出现了问题，即使数据写入到剩余的 `ISR` 副本中, 由于可用节点较少，数据丢失的风险仍然较高。因此我们希望在 `ISR` 数量较少的情况下能够拒绝数据再继续写入以免出现数据丢失。
+因此在 `acks` 为 all 时，需要指定数据正常写入所需的 `ISR` 的最小数量。配置：`min.insync.replicas` 的作用就是这样，该配置指定了必须确认写入的最小 `ISR` 数。该配置只在 `acks` 为 all 时生效，因为其余两个选项并不会要求确认 `ISR` 写入的结果。
+`min.insync.replicas` 默认值为 1，代表 `ISR` 副本的数量至少要为 1，否则抛出 `NotEnoughReplicasException`。而 `leader` 副本也是 `ISR` 中的一员。因此在使用默认值时，`acks` 配置为 1 和 all 是等效的。假设数据尝试写入时 `ISR` 数少于配置值，比如配置值为 3，但 `ISR` 数量为 2，那么会拒绝写入数据。如果写入 `leader` 后成功同步的其他 `ISR` 数量小于配置的值，即没有足够多的  `ISR` 成功写入了数据。那么会抛出 `NotEnoughReplicasAfterAppend`。
+`ISR` 的数量必定会小于或等于可用的 `broker` 数量, 因此 `min.insync.replicas` 的值也必须小于或等于可用的 `broker` 数量。
+
+### Segment
 
 
 
