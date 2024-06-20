@@ -10,7 +10,7 @@
 
 本文深入探讨（其实不深入） Kafka 核心概念 Topic 与 Partition 的内部原理。
 
-
+![alt text](image-4.png)
 
 ## Topic
 Kafka 是一个事件流平台，消息（事件）流向 Kafka，随后通过 Kafka 又流向其他服务或平台。
@@ -67,7 +67,9 @@ Kafka 在内部维护了一组同步副本（in-sync replicas），被称为 `IS
 
 注意 `ISR` 中包含 `leader` 副本。
 
-Kafka 可以通过 `ISR` 来确定数据的写入是否正常。在常见的分布式集群下，成功写入的标准一般是写入集群内超过半数的节点。而在 Kafka 中，数据写入的地方是 `partition`，对于某个 `partition`，集群中某些节点上可能并不存在这个 `partition` 的副本。这就意味着对于写入数据而言，只需要关心 `partition` 副本（`leader` / `follower`）所在的 `broker` 即可。`ISR`  列表是动态变化的，一旦 `broker` 落后太多数据或是故障，就会被移出 `ISR`。在此基础上，Kafka 通过 `ISR` 确定某个 `partition` 对于的一组处于 *“同步”* 状态的节点，并以此来衡量写入是否成功。
+每个 `partition` 都存在对应的 `ISR` 列表，且会动态变化。在正常情况下，`ISR` 就是 `partition` `leader` 和 `follower` 所在的所有节点。
+
+Kafka 可以通过 `ISR` 来确定数据的写入是否正常。在常见的分布式集群下，成功写入的标准一般是写入集群内超过半数的节点。而在 Kafka 中，数据写入的地方是 `partition`，对于某个 `partition`，集群中某些节点上可能并不存在这个 `partition` 的副本。这就意味着对于写入数据而言，只需要关心 `partition` 副本（`leader` / `follower`）所在的 `broker` 即可。`ISR`  列表是动态变化的，一旦 `broker` 落后太多数据或是故障，就会被移出 `ISR`。在此基础上，Kafka 通过 `ISR` 确定某个 `partition` 对应的一组处于 *“同步”* 状态的节点，并以此来衡量写入是否成功。
 
 具体来说，在投递数据时，生产者有一个配置：`acks` 非常重要，它指定了发送到 `partition` 中的消息被认定为成功写入的标准。有三个取值：0，1，-1（与 all 是等价的）。分别代表生产者发送数据后就代表成功写入；生产者发送数据后，需等待写入 `leader` 副本后返回 `broker` 的确认才算成功写入。
 第三个取值单独解释，当 `acks` 设置为 all 时，生产者发送数据后，除了需要写入 `leader` 副本，还需要等待数据同步到其他 `ISR` 上。由于 `ISR` 会动态变化，假设现在集群中某个 `partition` 分布在 20 个 `broker` 上，但有 18 个 `broker` 都已经故障或是数据落后 `leader` 过多，此时 `ISR` 的数量为 2，这时集群明显出现了问题，即使数据写入到剩余的 `ISR` 副本中, 由于可用节点较少，数据丢失的风险仍然较高。因此我们希望在 `ISR` 数量较少的情况下能够拒绝数据再继续写入以免出现数据丢失。
@@ -76,6 +78,36 @@ Kafka 可以通过 `ISR` 来确定数据的写入是否正常。在常见的分�
 `ISR` 的数量必定会小于或等于可用的 `broker` 数量, 因此 `min.insync.replicas` 的值也必须小于或等于可用的 `broker` 数量。
 
 ### Segment
+我们已经知道了 `topic` 由 `partition` 组成，数据写入时需要指定写入的 `topic` 和 `partition`。实际上，`partition` 并不是数据存储的最小单位，一个 `partition` 还会被分为多个 `segment`（段）。`Segment` 的作用是将一个 `partition` 进行拆分，从而避免单个日志文件过大。另一方面来说，拆分过后，Kafka 对于 `partition` 的操作颗粒度可以更加精细，比如删除过期数据时，Kafka 可以直接将一整个 `segment` 直接删除，而不是读取一整个大文件，然后找到过期数据进行清理。
 
+Kafka 日志目录结构如下图所示：
+
+![alt text](image-6.png)
+
+与 segment 有关的部分文件的作用分别是：
+
+这些是与消息记录相关的文件：
+* .log 文件存储具体的消息记录
+* .index 文件存储消息偏移量（offset）到消息物理地址之间的映射关系
+* .timeindex 文件存储消息时间戳（timestamp）到消息偏移量（offset）之间的映射关系
+> 很明显，.index，.timeindex 都是为了加快在 .log 文件中查找具体消息的速度。
+
+这些是与集群或复制副本相关的文件：
+* .snapshot 文件用于存储选择新 `leader` 时所需的生产者状态信息
+* leader-epoch-checkpoint 文件存储了之前所有领导人的详细信息
+
+segment 的大小由以下参数进行指定：
+* `log.segment.bytes` 参数指定单个 `segment` 的大小，默认为 1 GB。
+* `log.roll.ms` 或 `log.roll.hours` 参数指定单个 `segment` 的可持续写入的时间，默认值为 1 周。
+
+如果超过上面任意一个配置的参数，该 `segment` 将关闭并打开一个新的 `segment`。
+
+segment 的保留时间由以下参数进行指定：
+* `log.retention.ms` 或 `log.retention.minutes` 或 `log.retention.hours` 参数指定 `segment` 的保留时间，默认值为 1 周。
+* * `log.retention.bytes` 参数指定每个 `partition` 最多保留多大的日志文件，默认值为 -1，表示不做限制。
+
+如果超过上面任意一个配置的参数，Kafka 都将清理部分日志来确保符合配置。清理日志是以删除 `segment` 文件来进行的，而不是清除单个 `segment` 文件的部分内容。
+
+了解完 `topic`，`partition`，`segment` 的关系后，也许你会想，为什么还要再拆分 `partition` 为 `segment` 来存储数据，而不是直接以 `partition` 来存储数据，通过划分更多的 `partition` 来减少单个 `partition` 文件的大小。
 
 
