@@ -48,14 +48,27 @@ Kafka 是一个事件流平台，消息（事件）流向 Kafka，随后通过 K
 `Follower` 副本并不负责生产者或消费者请求的处理，它只会同步来自 `Leader` 副本的数据。每个 `partition` 的请求都只会交由 `Leader` 副本所在的 `broker` 来进行处理，一旦数据写入 `Leader` 副本所在 `broker`，`broker` 会将数据同步给 `Follower` 副本。
 由上述操作流程可知，每个生产者在发送消息前都需要获取到集群内部 `topic`、`partition` 的相关信息。因此，发送消息前，生产者都会先向 `broker` 获取一系列元数据，这些元数据可以用于帮助生产者来确定发送到哪个 `broker`（`Leader` 副本所在的节点），以及在未指定 `partition`  时通过可用的 `partition` 列表来默认指定 `partition`。
 
+##### Partitioner (分区器)
 > 以下内容针对于 Java 语言的 Kafka 客户端代码。 
-> 
->在使用 Kafka 客户端代码进行消息发送时，`partition` 和 消息 `key` 是可选的。如果指定了 `partition`，Kafka 会将消息写入到指定的 `partition` 中。
->
-> 如果没有指定 `partition`，默认的实现会使用 `key` 的 `hash` 值来进行 `partition` 的选择，这意味着拥有相同的不为空的 `key` 的消息最终会被写入到相同的 `partition` 中。
-> 如果 `key` 为空，会计算出一个投递的 `partition`，并且后续所有 `key` 为空的消息都会被投递至这一 `partition`。因此，正常情况下，如果没有指定 `partition`，你不应该传递空  `key`。
-> 
-> 上述默认实现也许不能满足使用，另一种常见的情况是自己自定义 `Partitioner` 来自定义不指定 `partition` 时如何计算出写入的 `partition`。
+
+在使用 Kafka 客户端代码进行消息发送时，`partition` 和 消息 `key` 是可选的。如果指定了 `partition`，Kafka 会将消息写入到指定的 `partition` 中。
+
+如果没有指定 `partition`，Kafka 将使用分区器来计算需要该消息需要投放到的 `partition`.
+
+ ~~默认的分区器实现会使用 `key` 的 `hash` 值来进行 `partition` 的选择，这意味着拥有相同的不为空的 `key` 的消息最终会被写入到相同的 `partition` 中。
+如果 `key` 为空，会计算出一个投递的 `partition`，并且后续所有 `key` 为空的消息都会被投递至这一 `partition`。因此，正常情况下，如果没有指定 `partition`，你不应该传递空  `key`。~~
+
+不同 Kafka 的版本默认分区器及其处理方式有所不同:
+* 2.3及其以下版本的 Kafka 默认的分区器是 `DefaultPartitioner`, 该分区器在指定 `key` 的情况下使用 `key` 的 `hash` 值来计算出 `partition` 作为消息投放的目的地. 这意味者相同 `key` 的消息会被投放到同一个 `partition` 中. 如果没有指定 `key`, 将以循环方式为消息选择分区. 其具体实现是使用一个 `AtomicInteger`, 用这个值自增, 然后对可用分区数进行取模得到 `partition` 的值. 每条消息将均匀的分配到各个可用分区上.
+  但为每条记录选择不同的分区可能会降低分区批次消息的大小, 这使得消息处理的延迟上升.
+* 为了解决上述问题, 2.4 及以上版本的 Kafka 引入了称为**粘性分区**的策略, 并将其作为默认分区策略. 简单来说, 不再为每个未指定 `key` 的消息单独选择分区, 而是选择单个分区来发送所有未指定 `key` 的消息, 这使得这些消息会处于同一批次进行发送, 发送该批次消息后, 再随机选择一个新的分区作为下一批未指定 `key` 消息的分区. 这样的策略解决了将没有指定 `key` 时, 消息分散成较小批次的问题。
+  > https://cwiki.apache.org/confluence/display/KAFKA/KIP-480%3A+Sticky+Partitioner
+  >https://www.confluent.io/blog/apache-kafka-producer-improvements-sticky-partitioner/
+* 上述的粘性分区策略在一定情况下可能会造成某些分区负载变得更大. 考虑当某分区处理消息速度落后其他分区时, 由于较慢分区处理速度更慢, 发送给该分区的批次相对于其他分区有更大的可能会完全填满消息甚至堆积多个批次, 这意味着将会有更多的消息被写入该分区, 这又会增加本就较慢分区的压力, 形成恶性循环.
+  因此, 在 Kafka 3.0 版本以后, 执行粘性分区策略时, 将根据指定的大小来进行切换分区, 而不是等待批次填充满或是超过指定时间. 当批次累加到一定大小时, 将切换到下一个可用分区, 并开始新一个批次的填充.
+  > https://cwiki.apache.org/confluence/display/KAFKA/KIP-794%3A+Strictly+Uniform+Sticky+Partitioner
+
+上述默认实现也许不能满足使用，另一种常见的情况是自己自定义 `Partitioner` 来自定义不指定 `partition` 时如何计算出写入的 `partition`。
 
 ##### ISR
 前文提到 Kafka 支持集群模式进行部署以实现高可用，在分布式系统中，集群部署非常常见的一个确保高可用的方式是多数投票：只要超过半数节点正常，整个集群便可正常提供服务。
