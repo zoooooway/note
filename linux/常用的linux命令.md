@@ -69,3 +69,10 @@ find 文件所在路径 -type f -name *.jpg -mtime +210  -print -delete
 * 执行 `ifconfig` 查看网卡信息.
 * ` iftop -i 网卡名称 -P`.
 
+
+## 通过系统启动信息来排查问题
+```shell
+# 显示java相关的开机过程信息
+dmesg -T | grep java
+```
+> -T 显示时间
